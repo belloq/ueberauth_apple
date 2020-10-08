@@ -31,21 +31,31 @@ defmodule Ueberauth.Strategy.Apple do
   @doc """
   Handles the callback from Apple.
   """
-  def handle_callback!(%Plug.Conn{params: %{"code" => code} = params} = conn) do
-    user = (params["user"] && Ueberauth.json_library().decode!(params["user"])) || %{}
+  def handle_callback!(%Plug.Conn{params: %{"code" => code}} = conn) do
     opts = oauth_client_options_from_conn(conn)
 
-    case Ueberauth.Strategy.Apple.OAuth.get_access_token([code: code], opts) do
-      {:ok, token} ->
-        apple_user =
-          Map.put(user, "uid", UeberauthApple.uid_from_id_token(token.other_params["id_token"]))
-
-        conn
-        |> put_private(:apple_token, token)
-        |> put_private(:apple_user, apple_user)
-
+    with {:ok, token} <- Ueberauth.Strategy.Apple.OAuth.get_access_token([code: code], opts),
+         {:ok, user} <- UeberauthApple.user_from_id_token(token.other_params["id_token"])
+    do
+      conn
+      |> put_private(:apple_token, token)
+      |> put_private(:apple_user, user)
+    else
       {:error, {error_code, error_description}} ->
         set_errors!(conn, [error(error_code, error_description)])
+      {:error, error} ->
+        set_errors!(conn, [error("auth_failed", error)])
+    end
+  end
+
+  def handle_callback!(%Plug.Conn{params: %{"id_token" => id_token}} = conn) do
+    with {:ok, user} = UeberauthApple.user_from_id_token(id_token) do
+      conn
+      |> put_private(:apple_token, OAuth2.AccessToken.new(id_token))
+      |> put_private(:apple_user, user)
+    else
+      {:error, error} ->
+        set_errors!(conn, [error("auth_failed", error)])
     end
   end
 
