@@ -8,9 +8,9 @@ defmodule UeberauthApple do
          {true, %JOSE.JWT{fields: fields}, _JWS} <- JOSE.JWT.verify(key, id_token)
     do
       user = %{
-        uid: fields["sub"],
-        name: fields["name"],
-        email: fields["email"]
+        "uid" => fields["sub"],
+        "name" => fields["name"],
+        "email" => fields["email"]
       }
 
       {:ok, user}
