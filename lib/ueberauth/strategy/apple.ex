@@ -49,8 +49,16 @@ defmodule Ueberauth.Strategy.Apple do
     end
   end
 
-  def handle_callback!(%Plug.Conn{params: %{"id_token" => id_token}} = conn) do
+  def handle_callback!(%Plug.Conn{params: %{"id_token" => id_token} = params} = conn) do
     with {:ok, user} = UeberauthApple.user_from_id_token(id_token) do
+      name = Map.get(params, "name")
+      user =
+        if is_nil(name) do
+          user
+        else
+          Map.put(user, "name", name)
+        end
+
       conn
       |> put_private(:apple_token, OAuth2.AccessToken.new(id_token))
       |> put_private(:apple_user, user)
@@ -112,14 +120,21 @@ defmodule Ueberauth.Strategy.Apple do
   """
   def info(conn) do
     user = conn.private.apple_user
-    name = user["name"]
 
-    %Info{
-      email: user["email"],
-      first_name: name && name["firstName"],
-      last_name: name && name["lastName"]
-    }
+    put_name(%Info{
+      email: user["email"]
+    }, user["name"])
   end
+
+  defp put_name(params, name) when is_binary(name) do
+    Map.put(params, :name, name)
+  end
+  defp put_name(params, name) when is_map(name) or is_list(name) do
+    params
+    |> Map.put(:first_name, name["firstName"])
+    |> Map.put(:last_name, name["lastName"])
+  end
+  defp put_name(params, _), do: params
 
   @doc """
   Stores the raw information (including the token) obtained from the google callback.
