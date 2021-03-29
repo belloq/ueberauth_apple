@@ -40,7 +40,7 @@ defmodule Ueberauth.Strategy.Apple do
     do
       conn
       |> put_private(:apple_token, token)
-      |> put_private(:apple_user, user)
+      |> put_private(:apple_user, update_user_name(user, conn.params))
     else
       {:error, {error_code, error_description}} ->
         set_errors!(conn, [error(error_code, error_description)])
@@ -49,19 +49,11 @@ defmodule Ueberauth.Strategy.Apple do
     end
   end
 
-  def handle_callback!(%Plug.Conn{params: %{"id_token" => id_token} = params} = conn) do
+  def handle_callback!(%Plug.Conn{params: %{"id_token" => id_token}} = conn) do
     with {:ok, user} = UeberauthApple.user_from_id_token(id_token) do
-      name = Map.get(params, "name")
-      user =
-        if is_nil(name) do
-          user
-        else
-          Map.put(user, "name", name)
-        end
-
       conn
       |> put_private(:apple_token, OAuth2.AccessToken.new(id_token))
-      |> put_private(:apple_user, user)
+      |> put_private(:apple_user, update_user_name(user, conn.params))
     else
       {:error, error} ->
         set_errors!(conn, [error("auth_failed", error)])
@@ -84,6 +76,11 @@ defmodule Ueberauth.Strategy.Apple do
     |> put_private(:apple_user, nil)
     |> put_private(:apple_token, nil)
   end
+
+  defp update_user_name(user, %{"name" => name}) when not is_nil(name) and name != "" do
+    Map.put(user, "name", name)
+  end
+  defp update_user_name(user, _params), do: user
 
   @doc """
   Fetches the uid field from the response.
