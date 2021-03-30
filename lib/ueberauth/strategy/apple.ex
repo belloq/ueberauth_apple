@@ -77,6 +77,9 @@ defmodule Ueberauth.Strategy.Apple do
     |> put_private(:apple_token, nil)
   end
 
+  defp update_user_name(user, %{"user" => params}) do
+    update_user_name(user, Ueberauth.json_library().decode!(params))
+  end
   defp update_user_name(user, %{"name" => name}) when not is_nil(name) and name != "" do
     Map.put(user, "name", name)
   end
